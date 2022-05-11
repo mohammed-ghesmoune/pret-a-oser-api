@@ -1,0 +1,23 @@
+vich_uploader:
+    db_driver: orm
+
+    mappings:
+        prestation-image:
+            uri_prefix: http://localhost:8000/images/prestations
+            upload_destination: '%kernel.project_dir%/public/images/prestations'
+            namer: Vich\UploaderBundle\Naming\OrignameNamer
+        page-image:
+            uri_prefix: http://localhost:8000/images/pages
+            upload_destination: '%kernel.project_dir%/public/images/pages'
+            namer: Vich\UploaderBundle\Naming\OrignameNamer
+        logo-image:
+            uri_prefix: http://localhost:8000/images/logos
+            upload_destination: '%kernel.project_dir%/public/images/logos'
+            namer: Vich\UploaderBundle\Naming\OrignameNamer
+
+# when&dev:
+#     vich_uploader:
+#         mappings:
+#             prestation-image:
+#                 uri_prefix: ''
+

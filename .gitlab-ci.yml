@@ -1,0 +1,107 @@
+stages:
+- build
+- test
+- release
+- deploy
+
+variables:
+  CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
+
+
+build-image:
+  stage: build
+  image: docker:git
+  services:
+    - docker:dind
+  before_script:
+  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $CONTAINER_TEST_IMAGE .
+    - docker push $CONTAINER_TEST_IMAGE
+  cache:
+    - key: 
+        files:
+          - composer.lock
+        prefix: $CI_COMMIT_REF_SLUG
+      paths:
+         - vendor/
+      policy: push
+
+
+test:
+  stage: test
+  image: $CONTAINER_TEST_IMAGE
+  services:
+    - name: mysql:8.0
+      alias: mysql
+  variables:
+    XDEBUG_MODE: coverage
+    MYSQL_ROOT_PASSWORD: root
+    MYSQL_DATABASE: pret-a-oser 
+    DATABASE_URL: 'mysql://root:root@mysql:3306/pret-a-oser'
+    JWT_SECRET_KEY: $JWT_SECRET_KEY
+    JWT_PUBLIC_KEY: $JWT_PUBLIC_KEY
+    JWT_PASSPHRASE: $JWT_PASSPHRASE
+
+  before_script:
+    - composer install
+    # - symfony console doctrine:database:drop --force --env=test
+    - symfony console doctrine:database:create --env=test
+    - symfony console doctrine:schema:create --env=test --no-interaction
+    - symfony serve -d --no-tls
+  
+  script:
+    # - php bin/phpunit --configuration phpunit.xml.dist --coverage-text --colors=never
+    - php bin/phpunit --log-junit report.xml
+  allow_failure: false
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+    
+  coverage: '/\d+\.\d+/'
+  cache:
+    - key: 
+        files:
+          - composer.lock
+        prefix: $CI_COMMIT_REF_SLUG
+      paths:
+         - vendor/
+      policy: pull
+
+# release-image:
+#   stage: release
+#   script:
+#     - docker pull $CONTAINER_TEST_IMAGE
+#     - docker tag $CONTAINER_TEST_IMAGE $CONTAINER_RELEASE_IMAGE
+#     - docker push $CONTAINER_RELEASE_IMAGE
+#   only:
+#     - main
+
+# deploy-to-staging:
+#   tags:
+#     - shell
+#   stage: deploy
+#   environment:
+#     name: staging
+#   script:
+#     - ssh  $SERVER_USER@$SERVER_HOST "rm -rf ~/public_html/pret-a-oser/staging/pret-a-oser-api/* && ls -la ~/public_html/pret-a-oser/staging/pret-a-oser-api"
+#     - ssh  $SERVER_USER@$SERVER_HOST "cd ~/public_html/pret-a-oser/staging/pret-a-oser-api && git clone --depth 1 --branch $CI_COMMIT_REF_NAME  $CI_REPOSITORY_URL .  && git log --oneline "
+#     - ssh -p22 $SERVER_USER@$SERVER_HOST "cd ~/public_html/pret-a-oser/staging/pret-a-oser-api && composer install --no-dev"
+#   except:
+#     - main
+
+# deploy-to-production:
+#   tags:
+#     - shell
+#   stage: deploy
+#   environment:
+#     name: production
+#   script:
+#     - ssh  $SERVER_USER@$SERVER_HOST "rm -rf ~/public_html/pret-a-oser/production/pret-a-oser-api/* && ls -la ~/public_html/pret-a-oser/production/pret-a-oser-api"
+#     - ssh  $SERVER_USER@$SERVER_HOST "cd ~/public_html/pret-a-oser/production/pret-a-oser-api && git clone --depth 1 --branch $CI_COMMIT_REF_NAME  $CI_REPOSITORY_URL .  && git log --oneline "
+#     - ssh -p22 $SERVER_USER@$SERVER_HOST "cd ~/public_html/pret-a-oser/production/pret-a-oser-api && composer install --no-dev"
+#   only:
+#     - main
+
